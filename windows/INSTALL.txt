@@ -1,0 +1,21 @@
+KeySwap for Windows
+
+Requirements:
+- Windows 10 or later (x64)
+- Microsoft Edge WebView2 Runtime
+
+Usage:
+1. Extract the complete package folder.
+2. Run KeySwap.exe.
+3. Choose a language or edit key assignments.
+4. Click Apply system-wide and confirm the native Windows prompt.
+5. Click Stop remapping or close KeySwap to restore normal typing.
+
+The remap runs only while KeySwap is open. It does not change Windows settings,
+the registry, or install a keyboard driver. Control, Alt, and Windows shortcuts
+are preserved. Only letters, digits, punctuation, and Space are remapped;
+other keys keep their normal behavior. Alternate legends use Shift. AltGr is
+not modeled. Secure screens and elevated apps may ignore injected text.
+
+The desktop package is local-first. Supabase accounts and Stripe billing are
+available only in the separately served web version.
