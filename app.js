@@ -160,7 +160,13 @@ const authMessage = document.querySelector('#auth-message');
 const signInTab = document.querySelector('#sign-in-tab');
 const signUpTab = document.querySelector('#sign-up-tab');
 const googleAuthButton = document.querySelector('#google-auth-button');
-const appleAuthButton = document.querySelector('#apple-auth-button');
+const microsoftAuthButton = document.querySelector('#microsoft-auth-button');
+const githubAuthButton = document.querySelector('#github-auth-button');
+const oauthProviders = {
+  google: { name: 'Google', button: googleAuthButton },
+  azure: { name: 'Microsoft', button: microsoftAuthButton },
+  github: { name: 'GitHub', button: githubAuthButton }
+};
 const authLoginPanel = document.querySelector('#auth-login-panel');
 const accountSessionPanel = document.querySelector('#account-session-panel');
 const accountEmail = document.querySelector('#account-email');
@@ -428,8 +434,9 @@ function updateCloudUi() {
   authSubmit.disabled = !supabaseClient || signedIn;
   authEmail.disabled = !supabaseClient || signedIn;
   authPassword.disabled = !supabaseClient || signedIn;
-  googleAuthButton.disabled = !supabaseClient || signedIn;
-  appleAuthButton.disabled = !supabaseClient || signedIn;
+  for (const { button } of Object.values(oauthProviders)) {
+    button.disabled = !supabaseClient || signedIn;
+  }
   renderMfaControls();
   renderSavedLayouts();
 }
@@ -716,8 +723,9 @@ async function signOutAccount() {
 }
 
 async function signInWithProvider(provider) {
-  if (!supabaseClient) return;
-  const providerButton = provider === 'google' ? googleAuthButton : appleAuthButton;
+  const providerDetails = oauthProviders[provider];
+  if (!supabaseClient || !providerDetails) return;
+  const { button: providerButton, name: providerName } = providerDetails;
   providerButton.disabled = true;
   authMessage.textContent = '';
 
@@ -729,6 +737,7 @@ async function signInWithProvider(provider) {
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider,
       options: {
+        ...(provider === 'azure' ? { scopes: 'email' } : {}),
         redirectTo,
         ...(desktop ? { skipBrowserRedirect: true } : {})
       }
@@ -741,7 +750,7 @@ async function signInWithProvider(provider) {
       authMessage.textContent = 'Finish sign-in in your browser. Keep KeySwap open while it returns here.';
     }
   } catch (error) {
-    authMessage.textContent = `Could not continue with ${provider === 'google' ? 'Google' : 'Apple'}: ${error.message || 'Check Supabase provider setup.'}`;
+    authMessage.textContent = `Could not continue with ${providerName}: ${error.message || 'Check Supabase provider setup.'}`;
   } finally {
     updateCloudUi();
   }
@@ -1064,7 +1073,8 @@ authDialog.addEventListener('click', event => {
 signInTab.addEventListener('click', () => setAuthMode('sign-in'));
 signUpTab.addEventListener('click', () => setAuthMode('sign-up'));
 googleAuthButton.addEventListener('click', () => { void signInWithProvider('google'); });
-appleAuthButton.addEventListener('click', () => { void signInWithProvider('apple'); });
+microsoftAuthButton.addEventListener('click', () => { void signInWithProvider('azure'); });
+githubAuthButton.addEventListener('click', () => { void signInWithProvider('github'); });
 signOutButton.addEventListener('click', () => { void signOutAccount(); });
 enrollMfaButton.addEventListener('click', () => { void beginMfaEnrollment(); });
 cancelMfaEnrollmentButton.addEventListener('click', () => { void cancelMfaEnrollment(); });

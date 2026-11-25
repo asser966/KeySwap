@@ -51,8 +51,9 @@ remain disabled until a Supabase project and Stripe product are configured.
 Browser sign-up uses Supabase's PKCE email-confirmation flow. The Windows app
 uses the same Supabase account and a temporary loopback callback at
 `http://127.0.0.1:54123/auth/callback`; keep KeySwap open and open the email
-confirmation or OAuth link on the same device. Google and Apple sign-in use
-the default browser in the Windows app and return through that callback.
+confirmation or OAuth link on the same device. Google, Microsoft, and GitHub
+sign-in use the default browser in the Windows app and return through that
+callback.
 Stripe return flows remain web-version features and are not available in the
 portable desktop bundle.
 The repository contains no provider credentials and none should be committed.
@@ -64,12 +65,14 @@ The repository contains no provider credentials and none should be committed.
    `https://<your-domain>/**`. Add
    `http://127.0.0.1:54123/auth/callback` to the same allow-list for Windows
    email confirmation and OAuth returns.
-2. To enable social sign-in, configure Google and Apple under Auth > Providers.
-   Register the provider callback URL shown by Supabase with each provider and
-   keep their client credentials in Supabase's provider settings, never in
-   `config.js`. A provider button supports both new account creation and
-   returning-user login. Until both the project config and provider are set up,
-   social sign-in will remain unavailable or show the provider's setup error.
+2. To enable social sign-in, configure Google, Azure (Microsoft), and GitHub
+   under Auth > Providers. Register the provider callback URL shown by
+   Supabase with each provider and keep their client credentials in Supabase's
+   provider settings, never in `config.js`. Microsoft sign-in uses Supabase's
+   `azure` provider and requests the `email` scope. A provider button supports
+   both new account creation and returning-user login. Until the project config
+   and provider are set up, social sign-in remains unavailable or shows the
+   provider's setup error.
 3. Put the Supabase project URL and **publishable/anon key** in `config.js`:
    ```js
    window.KEYSWAP_CONFIG = Object.freeze({
@@ -108,8 +111,9 @@ The browser version must be served from HTTP(S), not
 opened as `file://`. Desktop email confirmation works only while KeySwap is
 running and the configured loopback port is available; errors are shown in
 the app rather than treating an incomplete confirmation as success.
-After email, Google, or Apple sign-in, users must enroll an authenticator app
-or verify an existing TOTP code before saved layouts and billing are available.
+After email, Google, Microsoft, or GitHub sign-in, users must enroll an
+authenticator app or verify an existing TOTP code before saved layouts and
+billing are available.
 The QR setup secret is held only in the open page while enrollment is pending;
 it is never written to browser storage or logs. Enable TOTP under Supabase
 Auth > MFA and leave at least one factor slot available. OAuth provider

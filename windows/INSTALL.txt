@@ -28,9 +28,10 @@ available only after you configure a Supabase project. For sign-in and MFA:
    Never use a service-role key in this file.
 2. In Supabase Auth > URL Configuration, allow
    http://127.0.0.1:54123/auth/callback for email confirmation and OAuth.
-3. Enable Google and Apple under Auth > Providers. Register the provider
-   callback URL shown by Supabase with the identity provider; store provider
-   credentials only in Supabase.
+3. Enable Google, Azure (Microsoft), and GitHub under Auth > Providers.
+   Register the provider callback URL shown by Supabase with each identity
+   provider; store provider credentials only in Supabase. Microsoft sign-in
+   uses Supabase's Azure provider and requests the email scope.
 4. Enable TOTP under Auth > MFA and apply the repository migrations with the
    Supabase CLI. Keep KeySwap open while completing email/OAuth sign-in.
 
