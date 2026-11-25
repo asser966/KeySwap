@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'https://esm.sh/stripe@17.7.0?target=deno';
+import { requireAal2User } from '../_shared/auth.ts';
 import {
   handleOptions,
   jsonResponse,
@@ -12,24 +13,16 @@ const stripe = new Stripe(requiredEnv('STRIPE_SECRET_KEY'), {
   httpClient: Stripe.createFetchHttpClient()
 });
 
-function authenticatedUser(request: Request) {
-  const authorization = request.headers.get('Authorization');
-  if (!authorization?.startsWith('Bearer ')) throw new Error('Sign in to continue');
-  const supabase = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_ANON_KEY'), {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-  return supabase.auth.getUser();
-}
-
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return handleOptions(request);
   try {
     rejectUnexpectedOrigin(request);
     if (request.method !== 'POST') return jsonResponse(request, { error: 'Method not allowed' }, 405);
 
-    const { data: { user }, error: authError } = await authenticatedUser(request);
-    if (authError || !user) return jsonResponse(request, { error: 'Sign in to continue' }, 401);
+    const authorization = await requireAal2User(request);
+    if (!authorization.user)
+      return jsonResponse(request, { error: authorization.error }, authorization.status);
+    const { user } = authorization;
 
     const admin = createClient(requiredEnv('SUPABASE_URL'), requiredEnv('SUPABASE_SERVICE_ROLE_KEY'), {
       auth: { persistSession: false, autoRefreshToken: false }

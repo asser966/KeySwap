@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -32,7 +33,12 @@ internal sealed class MainForm : Form
         window.keySwapDesktop = Object.freeze({
           applyLayout: layout => request("apply-layout", { layout }),
           stopRemapping: () => request("stop-remapping"),
-          getRemapStatus: () => request("get-status")
+          getRemapStatus: () => request("get-status"),
+          getAuthRedirectUrl: () => request("get-auth-redirect-url"),
+          openExternalAuthUrl: (url, projectUrl) => request("open-auth-url", { url, projectUrl }),
+          receiveAuthCallback: callback => window.dispatchEvent(
+            new CustomEvent("keyswauthcallback", { detail: callback })
+          )
         });
       })();
       """;
@@ -44,6 +50,7 @@ internal sealed class MainForm : Form
 
     private readonly WebView2 _browser = new() { Dock = DockStyle.Fill };
     private readonly KeyboardRemapper _remapper = new();
+    private readonly AuthCallbackListener _authCallbackListener = new();
 
     public MainForm()
     {
@@ -53,8 +60,13 @@ internal sealed class MainForm : Form
         MinimumSize = new Size(800, 620);
         StartPosition = FormStartPosition.CenterScreen;
         Controls.Add(_browser);
+        _authCallbackListener.CallbackReceived += HandleAuthCallback;
         Shown += InitializeBrowser;
-        FormClosing += (_, _) => _remapper.Dispose();
+        FormClosing += (_, _) =>
+        {
+            _authCallbackListener.Dispose();
+            _remapper.Dispose();
+        };
     }
 
     private async void InitializeBrowser(object? sender, EventArgs e)
@@ -101,6 +113,8 @@ internal sealed class MainForm : Form
             object result = type switch
             {
                 "get-status" => GetStatus(),
+                "get-auth-redirect-url" => _authCallbackListener.Start(),
+                "open-auth-url" => OpenExternalAuthUrl(root),
                 "stop-remapping" => StopRemapping(),
                 "apply-layout" => ApplyLayout(root.GetProperty("layout")),
                 _ => throw new InvalidDataException("Unknown desktop action.")
@@ -112,6 +126,60 @@ internal sealed class MainForm : Form
         {
             if (!string.IsNullOrEmpty(requestId))
                 Respond(requestId, null, error.Message);
+        }
+    }
+
+    private static object OpenExternalAuthUrl(JsonElement request)
+    {
+        var urlValue = request.GetProperty("url").GetString();
+        var projectUrlValue = request.GetProperty("projectUrl").GetString();
+        if (!Uri.TryCreate(urlValue, UriKind.Absolute, out var authUri) ||
+            !Uri.TryCreate(projectUrlValue, UriKind.Absolute, out var projectUri) ||
+            authUri.Scheme != projectUri.Scheme ||
+            !string.Equals(authUri.Host, projectUri.Host, StringComparison.OrdinalIgnoreCase) ||
+            authUri.Port != projectUri.Port ||
+            authUri.AbsolutePath != "/auth/v1/authorize" ||
+            !string.IsNullOrEmpty(authUri.UserInfo) ||
+            !string.IsNullOrEmpty(authUri.Fragment))
+            throw new InvalidDataException("Supabase returned an invalid sign-in URL.");
+
+        Process.Start(new ProcessStartInfo(authUri.ToString()) { UseShellExecute = true });
+        return new { opened = true };
+    }
+
+    private void HandleAuthCallback(string? code, string? error)
+    {
+        if (IsDisposed || Disposing)
+            return;
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => _ = ForwardAuthCallbackAsync(code, error)));
+            return;
+        }
+
+        _ = ForwardAuthCallbackAsync(code, error);
+    }
+
+    private async Task ForwardAuthCallbackAsync(string? code, string? error)
+    {
+        try
+        {
+            if (_browser.CoreWebView2 is null)
+                throw new InvalidOperationException("The KeySwap account page is not ready.");
+
+            var callback = JsonSerializer.Serialize(new { code, error });
+            await _browser.CoreWebView2.ExecuteScriptAsync(
+                $"window.keySwapDesktop?.receiveAuthCallback({callback});");
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                this,
+                $"Could not return from email confirmation to KeySwap.\n\n{exception.Message}",
+                "KeySwap sign-in",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
     }
 

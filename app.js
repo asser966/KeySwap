@@ -117,7 +117,10 @@ const themes = {
   paper: 'Paper',
   ocean: 'Ocean',
   amethyst: 'Amethyst',
-  ember: 'Ember'
+  ember: 'Ember',
+  slate: 'Slate',
+  rose: 'Rose',
+  'high-contrast': 'High contrast'
 };
 
 const storageKey = 'keyswap-layout-v1';
@@ -147,6 +150,7 @@ const applySystemLayoutButton = document.querySelector('#apply-system-layout');
 const stopSystemRemapButton = document.querySelector('#stop-system-remap');
 const systemRemapStatus = document.querySelector('#system-remap-status');
 const authDialog = document.querySelector('#auth-dialog');
+const authTitle = document.querySelector('#auth-title');
 const authConfigMessage = document.querySelector('#auth-config-message');
 const authForm = document.querySelector('#auth-form');
 const authEmail = document.querySelector('#auth-email');
@@ -155,12 +159,35 @@ const authSubmit = document.querySelector('#auth-submit');
 const authMessage = document.querySelector('#auth-message');
 const signInTab = document.querySelector('#sign-in-tab');
 const signUpTab = document.querySelector('#sign-up-tab');
+const googleAuthButton = document.querySelector('#google-auth-button');
+const appleAuthButton = document.querySelector('#apple-auth-button');
+const authLoginPanel = document.querySelector('#auth-login-panel');
+const accountSessionPanel = document.querySelector('#account-session-panel');
+const accountEmail = document.querySelector('#account-email');
+const signOutButton = document.querySelector('#sign-out-button');
+const mfaStatus = document.querySelector('#mfa-status');
+const mfaFactorLabel = document.querySelector('#mfa-factor-label');
+const mfaFactorSelect = document.querySelector('#mfa-factor-select');
+const enrollMfaButton = document.querySelector('#enroll-mfa-button');
+const mfaEnrollForm = document.querySelector('#mfa-enroll-form');
+const mfaQrCode = document.querySelector('#mfa-qr-code');
+const mfaSecret = document.querySelector('#mfa-secret');
+const mfaEnrollCode = document.querySelector('#mfa-enroll-code');
+const cancelMfaEnrollmentButton = document.querySelector('#cancel-mfa-enrollment');
+const mfaChallengeForm = document.querySelector('#mfa-challenge-form');
+const mfaChallengeCode = document.querySelector('#mfa-challenge-code');
+const removeMfaButton = document.querySelector('#remove-mfa-button');
 const supabaseConfig = window.KEYSWAP_CONFIG || {};
 let supabaseClient = null;
 let cloudConfigError = '';
 let session = null;
 let subscription = null;
 let savedLayouts = [];
+let assuranceLevel = 'aal1';
+let verifiedMfaFactors = [];
+let selectedMfaFactorId = null;
+let pendingEnrollmentFactorId = null;
+let mfaPromptedUserId = null;
 let authMode = 'sign-in';
 let cloudRefreshId = 0;
 const savedState = loadState();
@@ -381,22 +408,67 @@ function renderSavedLayouts() {
 function updateCloudUi() {
   const signedIn = Boolean(session?.user);
   const paid = isProPlan();
-  accountButton.textContent = signedIn ? 'Sign out' : 'Sign in / Sign up';
-  accountButton.title = signedIn ? `Signed in as ${session.user.email || 'user'}` : 'Sign in or create an account';
+  const canUseCloud = signedIn && assuranceLevel === 'aal2';
+  accountButton.textContent = signedIn ? 'Account' : 'Sign in / Sign up';
+  accountButton.title = signedIn ? `Account for ${session.user.email || 'user'}` : 'Sign in or create an account';
+  authTitle.textContent = signedIn ? 'Account security' : authMode === 'sign-up' ? 'Create your account' : 'Welcome back';
+  authLoginPanel.hidden = signedIn;
+  accountSessionPanel.hidden = !signedIn;
+  accountEmail.textContent = signedIn ? `Signed in as ${session.user.email || 'user'}` : '';
   planStatus.textContent = paid
     ? `Pro plan · ${savedLayouts.length} saved`
     : `Free plan · ${savedLayouts.length} / 5 saved`;
-  saveLayoutButton.disabled = !supabaseClient || !signedIn || (!paid && savedLayouts.length >= 5);
-  upgradeButton.disabled = !supabaseClient || !signedIn || paid;
+  saveLayoutButton.disabled = !supabaseClient || !canUseCloud || (!paid && savedLayouts.length >= 5);
+  upgradeButton.disabled = !supabaseClient || !canUseCloud || paid;
   upgradeButton.textContent = paid ? 'Pro plan active' : 'Upgrade to Pro';
   managePlanButton.hidden = !signedIn || !subscription?.stripe_customer_id;
-  managePlanButton.disabled = !supabaseClient;
+  managePlanButton.disabled = !supabaseClient || !canUseCloud;
   authConfigMessage.hidden = Boolean(supabaseClient);
-  authConfigMessage.textContent = `${cloudConfigError} Edit config.js with the Supabase project URL and publishable anon key.`;
-  authSubmit.disabled = !supabaseClient;
-  authEmail.disabled = !supabaseClient;
-  authPassword.disabled = !supabaseClient;
+  authConfigMessage.textContent = cloudConfigError;
+  authSubmit.disabled = !supabaseClient || signedIn;
+  authEmail.disabled = !supabaseClient || signedIn;
+  authPassword.disabled = !supabaseClient || signedIn;
+  googleAuthButton.disabled = !supabaseClient || signedIn;
+  appleAuthButton.disabled = !supabaseClient || signedIn;
+  renderMfaControls();
   renderSavedLayouts();
+}
+
+function renderMfaControls() {
+  const signedIn = Boolean(session?.user);
+  if (!signedIn) return;
+
+  const previousSelection = selectedMfaFactorId;
+  mfaFactorSelect.replaceChildren();
+  for (const factor of verifiedMfaFactors) {
+    const option = document.createElement('option');
+    option.value = factor.id;
+    option.textContent = factor.friendly_name || 'Authenticator app';
+    mfaFactorSelect.append(option);
+  }
+  selectedMfaFactorId = verifiedMfaFactors.some(factor => factor.id === previousSelection)
+    ? previousSelection
+    : verifiedMfaFactors[0]?.id || null;
+  if (selectedMfaFactorId) mfaFactorSelect.value = selectedMfaFactorId;
+
+  const hasFactor = verifiedMfaFactors.length > 0;
+  const hasAal2 = assuranceLevel === 'aal2';
+  mfaFactorLabel.hidden = verifiedMfaFactors.length < 2;
+  enrollMfaButton.hidden = hasFactor || Boolean(pendingEnrollmentFactorId);
+  enrollMfaButton.disabled = !supabaseClient;
+  mfaEnrollForm.hidden = !pendingEnrollmentFactorId;
+  mfaChallengeForm.hidden = !hasFactor || hasAal2;
+  removeMfaButton.hidden = !hasFactor || !hasAal2;
+
+  if (hasAal2) {
+    mfaStatus.textContent = 'Authenticator verified. Protected cloud saves and billing are unlocked.';
+  } else if (hasFactor) {
+    mfaStatus.textContent = 'Enter a current authenticator code to unlock protected account actions.';
+  } else if (pendingEnrollmentFactorId) {
+    mfaStatus.textContent = 'Scan this one-time setup code, then verify a code from your authenticator app.';
+  } else {
+    mfaStatus.textContent = 'Set up an authenticator app to unlock account saves and billing. Local editing remains available.';
+  }
 }
 
 async function refreshCloudData() {
@@ -415,11 +487,52 @@ async function refreshCloudData() {
     if (!session) {
       subscription = null;
       savedLayouts = [];
+      assuranceLevel = 'aal1';
+      verifiedMfaFactors = [];
+      selectedMfaFactorId = null;
+      mfaPromptedUserId = null;
+      pendingEnrollmentFactorId = null;
+      mfaQrCode.removeAttribute('src');
+      mfaSecret.textContent = '';
+      mfaEnrollCode.value = '';
       updateCloudUi();
       setCloudMessage('Sign in to save named layouts to your account. Free accounts can save up to five.');
       return;
     }
 
+    assuranceLevel = 'aal1';
+    subscription = null;
+    savedLayouts = [];
+    updateCloudUi();
+    if (!supabaseClient.auth.mfa)
+      throw new Error('This Supabase client does not support MFA. Update the app package and try again.');
+    const [assuranceResult, factorsResult] = await Promise.all([
+      supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel(),
+      supabaseClient.auth.mfa.listFactors()
+    ]);
+    if (requestId !== cloudRefreshId) return;
+    if (assuranceResult.error) throw assuranceResult.error;
+    if (factorsResult.error) throw factorsResult.error;
+    assuranceLevel = assuranceResult.data.currentLevel || 'aal1';
+    verifiedMfaFactors = (factorsResult.data.totp || []).filter(factor => factor.status === 'verified');
+    updateCloudUi();
+
+    if (assuranceLevel !== 'aal2') {
+      subscription = null;
+      savedLayouts = [];
+      updateCloudUi();
+      const needsChallenge = verifiedMfaFactors.length > 0;
+      setCloudMessage(needsChallenge
+        ? 'Verify your authenticator code before using cloud saves or billing.'
+        : 'Set up an authenticator app before using cloud saves or billing. Local editing remains available.');
+      if (mfaPromptedUserId !== session.user.id) {
+        mfaPromptedUserId = session.user.id;
+        if (!authDialog.open) authDialog.showModal();
+      }
+      return;
+    }
+
+    mfaPromptedUserId = null;
     const [layoutsResult, subscriptionResult] = await Promise.all([
       supabaseClient.from('saved_layouts')
         .select('id, name, language, layout, created_at')
@@ -443,8 +556,12 @@ async function refreshCloudData() {
         : 'Free plan: five saved layouts. Your current editor state also saves locally.');
   } catch (error) {
     if (requestId !== cloudRefreshId) return;
+    subscription = null;
+    savedLayouts = [];
     updateCloudUi();
-    setCloudMessage(`Could not load your account data: ${error.message || 'Check Supabase setup.'}`);
+    const message = `Could not load your account data: ${error.message || 'Check Supabase setup.'}`;
+    if (session) mfaStatus.textContent = message;
+    setCloudMessage(message);
   }
 }
 
@@ -459,9 +576,185 @@ function setAuthMode(mode) {
   authMessage.textContent = '';
 }
 
+function clearMfaEnrollmentUi() {
+  pendingEnrollmentFactorId = null;
+  mfaQrCode.removeAttribute('src');
+  mfaSecret.textContent = '';
+  mfaEnrollCode.value = '';
+  renderMfaControls();
+}
+
+async function beginMfaEnrollment() {
+  if (!supabaseClient || !session) return;
+  enrollMfaButton.disabled = true;
+  mfaStatus.textContent = 'Preparing authenticator setup…';
+  try {
+    const { data, error } = await supabaseClient.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: 'KeySwap authenticator',
+      issuer: 'KeySwap'
+    });
+    if (error) throw error;
+    pendingEnrollmentFactorId = data.id;
+    if (!data.totp?.qr_code || !data.totp?.secret ||
+        !data.totp.qr_code.startsWith('data:image/svg+xml')) {
+      throw new Error('Supabase did not return a valid authenticator QR code.');
+    }
+    mfaQrCode.src = data.totp.qr_code;
+    mfaSecret.textContent = data.totp.secret;
+    renderMfaControls();
+    mfaEnrollCode.focus();
+  } catch (error) {
+    renderMfaControls();
+    mfaStatus.textContent = `Could not prepare authenticator setup: ${error.message || 'Check Supabase MFA settings.'}`;
+  } finally {
+    enrollMfaButton.disabled = false;
+  }
+}
+
+async function cancelMfaEnrollment() {
+  const factorId = pendingEnrollmentFactorId;
+  if (!factorId) return;
+  clearMfaEnrollmentUi();
+  cancelMfaEnrollmentButton.disabled = true;
+  let cancellationError = '';
+  try {
+    const { error } = await supabaseClient.auth.mfa.unenroll({ factorId });
+    if (error) throw error;
+  } catch (error) {
+    cancellationError = `Could not remove the incomplete authenticator setup: ${error.message || 'Try again.'}`;
+  } finally {
+    cancelMfaEnrollmentButton.disabled = false;
+    await refreshCloudData();
+    if (cancellationError) {
+      mfaStatus.textContent = cancellationError;
+      setCloudMessage(cancellationError);
+    }
+  }
+}
+
+async function verifyMfaCode(factorId, code) {
+  const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({ factorId });
+  if (challengeError) throw challengeError;
+  const { error } = await supabaseClient.auth.mfa.verify({
+    factorId,
+    challengeId: challenge.id,
+    code
+  });
+  if (error) throw error;
+}
+
+async function verifyMfaEnrollment(event) {
+  event.preventDefault();
+  if (!pendingEnrollmentFactorId || !supabaseClient) return;
+  const factorId = pendingEnrollmentFactorId;
+  const code = mfaEnrollCode.value.trim();
+  const submitButton = mfaEnrollForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  mfaStatus.textContent = 'Verifying authenticator code…';
+  try {
+    await verifyMfaCode(factorId, code);
+    clearMfaEnrollmentUi();
+    mfaPromptedUserId = null;
+    await refreshCloudData();
+  } catch (error) {
+    mfaEnrollCode.value = '';
+    mfaStatus.textContent = `Could not verify this code: ${error.message || 'Enter the latest six-digit code and try again.'}`;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function verifyMfaChallenge(event) {
+  event.preventDefault();
+  if (!selectedMfaFactorId || !supabaseClient) return;
+  const code = mfaChallengeCode.value.trim();
+  const submitButton = mfaChallengeForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  mfaStatus.textContent = 'Verifying authenticator code…';
+  try {
+    await verifyMfaCode(selectedMfaFactorId, code);
+    mfaChallengeCode.value = '';
+    mfaPromptedUserId = null;
+    await refreshCloudData();
+  } catch (error) {
+    mfaChallengeCode.value = '';
+    mfaStatus.textContent = `Could not verify this code: ${error.message || 'Enter the latest six-digit code and try again.'}`;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function removeMfaFactor() {
+  if (!selectedMfaFactorId || !supabaseClient || assuranceLevel !== 'aal2') return;
+  if (!window.confirm('Remove this authenticator? Protected cloud saves and billing will be locked until you set up and verify another factor.'))
+    return;
+
+  removeMfaButton.disabled = true;
+  try {
+    const { error } = await supabaseClient.auth.mfa.unenroll({ factorId: selectedMfaFactorId });
+    if (error) throw error;
+    selectedMfaFactorId = null;
+    mfaPromptedUserId = null;
+    await refreshCloudData();
+  } catch (error) {
+    mfaStatus.textContent = `Could not remove this authenticator: ${error.message || 'Try again.'}`;
+  } finally {
+    removeMfaButton.disabled = false;
+  }
+}
+
+async function signOutAccount() {
+  if (!supabaseClient) return;
+  if (pendingEnrollmentFactorId) await cancelMfaEnrollment();
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    setCloudMessage(`Could not sign out: ${error.message}`);
+    return;
+  }
+  setCloudMessage('You are signed out. Your current editor state remains saved locally.');
+}
+
+async function signInWithProvider(provider) {
+  if (!supabaseClient) return;
+  const providerButton = provider === 'google' ? googleAuthButton : appleAuthButton;
+  providerButton.disabled = true;
+  authMessage.textContent = '';
+
+  try {
+    const desktop = window.keySwapDesktop;
+    const redirectTo = desktop
+      ? await desktop.getAuthRedirectUrl()
+      : `${window.location.origin}${window.location.pathname}`;
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        ...(desktop ? { skipBrowserRedirect: true } : {})
+      }
+    });
+    if (error) throw error;
+
+    if (desktop) {
+      if (!data.url) throw new Error('Supabase did not return an authorization URL.');
+      await desktop.openExternalAuthUrl(data.url, supabaseConfig.supabaseUrl);
+      authMessage.textContent = 'Finish sign-in in your browser. Keep KeySwap open while it returns here.';
+    }
+  } catch (error) {
+    authMessage.textContent = `Could not continue with ${provider === 'google' ? 'Google' : 'Apple'}: ${error.message || 'Check Supabase provider setup.'}`;
+  } finally {
+    updateCloudUi();
+  }
+}
+
 async function saveCurrentLayout(event) {
   event.preventDefault();
   if (!supabaseClient || !session) return;
+  if (assuranceLevel !== 'aal2') {
+    setCloudMessage('Verify or set up an authenticator app before saving to your account.');
+    if (!authDialog.open) authDialog.showModal();
+    return;
+  }
   const name = saveLayoutName.value.trim();
   if (!name) {
     saveLayoutName.focus();
@@ -494,6 +787,11 @@ async function saveCurrentLayout(event) {
 }
 
 async function loadSavedLayout(saved) {
+  if (assuranceLevel !== 'aal2') {
+    setCloudMessage('Verify your authenticator code before opening saved layouts.');
+    if (!authDialog.open) authDialog.showModal();
+    return;
+  }
   if (!languages[saved.language] || !isValidLayout(saved.layout)) {
     setCloudMessage('This saved layout has an unsupported format.');
     return;
@@ -513,6 +811,11 @@ async function loadSavedLayout(saved) {
 
 async function deleteSavedLayout(id) {
   if (!supabaseClient || !session) return;
+  if (assuranceLevel !== 'aal2') {
+    setCloudMessage('Verify your authenticator code before changing saved layouts.');
+    if (!authDialog.open) authDialog.showModal();
+    return;
+  }
   const { error } = await supabaseClient.from('saved_layouts').delete().eq('id', id);
   if (error) {
     setCloudMessage(`Could not delete the saved layout: ${error.message}`);
@@ -532,6 +835,11 @@ function validateStripeRedirect(url, host) {
 
 async function openBillingFlow(functionName, allowedHost) {
   if (!supabaseClient || !session) return;
+  if (assuranceLevel !== 'aal2') {
+    setCloudMessage('Verify your authenticator code before opening billing.');
+    if (!authDialog.open) authDialog.showModal();
+    return;
+  }
   upgradeButton.disabled = true;
   managePlanButton.disabled = true;
   try {
@@ -547,10 +855,20 @@ async function openBillingFlow(functionName, allowedHost) {
 }
 
 async function initializeCloudAccount() {
-  if (!supabaseConfig.supabaseUrl || !supabaseConfig.supabaseAnonKey) {
-    cloudConfigError = 'Add your Supabase project URL and publishable key to config.js to enable accounts.';
+  const projectUrlValue = typeof supabaseConfig.supabaseUrl === 'string' ? supabaseConfig.supabaseUrl.trim() : '';
+  const publishableKey = typeof supabaseConfig.supabaseAnonKey === 'string' ? supabaseConfig.supabaseAnonKey.trim() : '';
+  const configLocation = window.keySwapDesktop ? 'wwwroot/config.js in the extracted Windows app folder' : 'config.js';
+  if (!projectUrlValue || !publishableKey) {
+    cloudConfigError = `Supabase is not configured, so sign-up and sign-in are unavailable. Set supabaseUrl and supabaseAnonKey in ${configLocation}; use only the publishable/anon key.`;
     updateCloudUi();
     setCloudMessage(`${cloudConfigError} Local editing remains available; account saving and billing are not connected.`);
+    return;
+  }
+
+  if (!window.keySwapDesktop && !['http:', 'https:'].includes(window.location.protocol)) {
+    cloudConfigError = 'The browser version must be served from an HTTP(S) address before Supabase authentication can work.';
+    updateCloudUi();
+    setCloudMessage(`${cloudConfigError} Local editing remains available.`);
     return;
   }
 
@@ -568,24 +886,62 @@ async function initializeCloudAccount() {
     if (!window.supabase?.createClient)
       throw new Error('Supabase client library did not initialize.');
 
-    const projectUrl = new URL(supabaseConfig.supabaseUrl);
+    const projectUrl = new URL(projectUrlValue);
     if (projectUrl.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(projectUrl.hostname))
       throw new Error('Supabase URL must use HTTPS.');
-    supabaseClient = window.supabase.createClient(projectUrl.origin, supabaseConfig.supabaseAnonKey);
+    if (projectUrl.pathname !== '/' || projectUrl.search || projectUrl.hash)
+      throw new Error('Supabase URL must be the project root URL, without a path or query string.');
+    supabaseClient = window.supabase.createClient(projectUrl.origin, publishableKey, {
+      auth: { flowType: 'pkce' }
+    });
   } catch (error) {
-    cloudConfigError = error instanceof Error ? error.message : 'Supabase configuration is invalid.';
+    cloudConfigError = `Could not initialize Supabase: ${error.message || 'Check the project URL and publishable key in ' + configLocation + '.'}`;
     updateCloudUi();
     setCloudMessage(`${cloudConfigError} Local editing remains available; account saving and billing are not connected.`);
     return;
   }
 
   supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+    const previousUserId = session?.user?.id;
     session = nextSession;
+    if (previousUserId !== session?.user?.id) {
+      assuranceLevel = 'aal1';
+      subscription = null;
+      savedLayouts = [];
+      verifiedMfaFactors = [];
+      selectedMfaFactorId = null;
+      mfaPromptedUserId = null;
+      pendingEnrollmentFactorId = null;
+      mfaQrCode.removeAttribute('src');
+      mfaSecret.textContent = '';
+      mfaEnrollCode.value = '';
+      mfaChallengeCode.value = '';
+    }
     updateCloudUi();
     setTimeout(() => { void refreshCloudData(); }, 0);
   });
   void refreshCloudData();
 }
+
+window.addEventListener('keyswauthcallback', async event => {
+  const callback = event.detail || {};
+  try {
+    if (!supabaseClient) throw new Error('Supabase is not configured in config.js.');
+    if (callback.error) throw new Error(callback.error);
+    if (typeof callback.code !== 'string' || !callback.code)
+      throw new Error('The confirmation link did not include an authorization code.');
+
+    const { error } = await supabaseClient.auth.exchangeCodeForSession(callback.code);
+    if (error) throw error;
+    authForm.reset();
+    await refreshCloudData();
+  } catch (error) {
+    const message = `Could not finish email confirmation: ${error.message || 'Request a new confirmation email.'}`;
+    authMessage.textContent = message;
+    if (session) mfaStatus.textContent = message;
+    setCloudMessage(message);
+  }
+});
 
 function applyLanguageDirection() {
   const isRtl = languages[language].direction === 'rtl';
@@ -693,26 +1049,32 @@ themeSelect.addEventListener('change', () => {
   showToast(`${themeSelect.options[themeSelect.selectedIndex].text} theme applied.`);
 });
 
-accountButton.addEventListener('click', async () => {
-  if (!supabaseClient || !session) {
-    setAuthMode('sign-in');
-    if (!authDialog.open) authDialog.showModal();
-    return;
-  }
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    setCloudMessage(`Could not sign out: ${error.message}`);
-    return;
-  }
-  setCloudMessage('You are signed out. Your current editor state remains saved locally.');
+accountButton.addEventListener('click', () => {
+  if (!session) setAuthMode('sign-in');
+  if (!authDialog.open) authDialog.showModal();
 });
 
 document.querySelector('#close-auth-dialog').addEventListener('click', () => authDialog.close());
+authDialog.addEventListener('close', () => {
+  if (pendingEnrollmentFactorId) void cancelMfaEnrollment();
+});
 authDialog.addEventListener('click', event => {
   if (event.target === authDialog) authDialog.close();
 });
 signInTab.addEventListener('click', () => setAuthMode('sign-in'));
 signUpTab.addEventListener('click', () => setAuthMode('sign-up'));
+googleAuthButton.addEventListener('click', () => { void signInWithProvider('google'); });
+appleAuthButton.addEventListener('click', () => { void signInWithProvider('apple'); });
+signOutButton.addEventListener('click', () => { void signOutAccount(); });
+enrollMfaButton.addEventListener('click', () => { void beginMfaEnrollment(); });
+cancelMfaEnrollmentButton.addEventListener('click', () => { void cancelMfaEnrollment(); });
+mfaEnrollForm.addEventListener('submit', verifyMfaEnrollment);
+mfaChallengeForm.addEventListener('submit', verifyMfaChallenge);
+mfaFactorSelect.addEventListener('change', () => {
+  selectedMfaFactorId = mfaFactorSelect.value;
+  mfaChallengeCode.value = '';
+});
+removeMfaButton.addEventListener('click', () => { void removeMfaFactor(); });
 
 authForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -723,30 +1085,34 @@ authForm.addEventListener('submit', async event => {
     const email = authEmail.value.trim();
     const password = authPassword.value;
     if (authMode === 'sign-up') {
+      const desktop = window.keySwapDesktop;
+      const emailRedirectTo = desktop
+        ? await desktop.getAuthRedirectUrl()
+        : `${window.location.origin}${window.location.pathname}`;
       const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}${window.location.pathname}` }
+        options: { emailRedirectTo }
       });
       if (error) throw error;
       if (data.session) {
-        authDialog.close();
         authForm.reset();
-        setCloudMessage('Account created and signed in.');
+        await refreshCloudData();
       } else {
-        authMessage.textContent = 'Check your email for a confirmation link to finish creating your account.';
+        authMessage.textContent = desktop
+          ? 'Check your email and open the confirmation link on this device while KeySwap is still running.'
+          : 'Check your email for a confirmation link to finish creating your account.';
       }
     } else {
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      authDialog.close();
       authForm.reset();
-      setCloudMessage('Signed in successfully.');
+      await refreshCloudData();
     }
   } catch (error) {
     authMessage.textContent = `Could not ${authMode === 'sign-up' ? 'create your account' : 'sign in'}: ${error.message || 'Check your email and password.'}`;
   } finally {
-    authSubmit.disabled = !supabaseClient;
+    updateCloudUi();
   }
 });
 

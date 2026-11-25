@@ -26,6 +26,9 @@
               <option value="ocean">Ocean</option>
               <option value="amethyst">Amethyst</option>
               <option value="ember">Ember</option>
+              <option value="slate">Slate</option>
+              <option value="rose">Rose</option>
+              <option value="high-contrast">High contrast</option>
             </select>
           </label>
           <span class="save-indicator"><span class="save-dot"></span><span id="save-status">Saved locally</span></span>
@@ -153,22 +156,64 @@
         <button id="close-auth-dialog" class="dialog-close" type="button" aria-label="Close sign in">×</button>
       </div>
       <p id="auth-config-message" class="config-message" hidden></p>
-      <div class="auth-tabs" role="group" aria-label="Account action">
-        <button id="sign-in-tab" type="button" aria-pressed="true">Sign in</button>
-        <button id="sign-up-tab" type="button" aria-pressed="false">Create account</button>
+      <div id="auth-login-panel">
+        <div class="auth-tabs" role="group" aria-label="Account action">
+          <button id="sign-in-tab" type="button" aria-pressed="true">Sign in</button>
+          <button id="sign-up-tab" type="button" aria-pressed="false">Create account</button>
+        </div>
+        <div class="oauth-actions">
+          <button id="google-auth-button" class="oauth-button" type="button">Continue with Google</button>
+          <button id="apple-auth-button" class="oauth-button" type="button">Continue with Apple</button>
+        </div>
+        <p class="oauth-setup-note">Social sign-in needs the Supabase URL and publishable key in config.js, plus Google and Apple enabled under Supabase Auth → Providers. Add the web and Windows callback URLs there; provider setup is documented in README.md.</p>
+        <div class="auth-divider"><span>or use email</span></div>
+        <form id="auth-form">
+          <label>
+            <span class="section-label">EMAIL</span>
+            <input id="auth-email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            <span class="section-label">PASSWORD</span>
+            <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required>
+          </label>
+          <button id="auth-submit" class="apply-button auth-submit" type="submit">Sign in</button>
+        </form>
+        <p id="auth-message" class="cloud-message" role="status" aria-live="polite"></p>
       </div>
-      <form id="auth-form">
-        <label>
-          <span class="section-label">EMAIL</span>
-          <input id="auth-email" type="email" autocomplete="email" required>
-        </label>
-        <label>
-          <span class="section-label">PASSWORD</span>
-          <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required>
-        </label>
-        <button id="auth-submit" class="apply-button auth-submit" type="submit">Sign in</button>
-      </form>
-      <p id="auth-message" class="cloud-message" role="status" aria-live="polite"></p>
+
+      <section id="account-session-panel" hidden>
+        <p id="account-email" class="account-email"></p>
+        <div class="mfa-panel">
+          <h3>Two-factor authentication</h3>
+          <p id="mfa-status" class="mfa-status" role="status" aria-live="polite"></p>
+          <label id="mfa-factor-label" class="mfa-factor-label" hidden>
+            <span class="section-label">AUTHENTICATOR</span>
+            <select id="mfa-factor-select"></select>
+          </label>
+          <button id="enroll-mfa-button" class="oauth-button" type="button" hidden>Set up authenticator app</button>
+          <form id="mfa-enroll-form" hidden>
+            <img id="mfa-qr-code" class="mfa-qr-code" alt="One-time authenticator setup QR code">
+            <p class="mfa-secret-copy">Can't scan? Enter this setup key manually: <code id="mfa-secret"></code></p>
+            <label>
+              <span class="section-label">6-DIGIT AUTHENTICATOR CODE</span>
+              <input id="mfa-enroll-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            </label>
+            <div class="mfa-actions">
+              <button class="apply-button" type="submit">Verify and enable</button>
+              <button id="cancel-mfa-enrollment" class="reset-button" type="button">Cancel setup</button>
+            </div>
+          </form>
+          <form id="mfa-challenge-form" hidden>
+            <label>
+              <span class="section-label">6-DIGIT AUTHENTICATOR CODE</span>
+              <input id="mfa-challenge-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            </label>
+            <button class="apply-button" type="submit">Verify code</button>
+          </form>
+          <button id="remove-mfa-button" class="reset-button" type="button" hidden>Remove selected authenticator</button>
+        </div>
+        <button id="sign-out-button" class="reset-button" type="button">Sign out</button>
+      </section>
     </dialog>
   </body>
 </html>
