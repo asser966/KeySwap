@@ -31,6 +31,7 @@ internal sealed class MainForm : Form
           window.chrome.webview.postMessage({ requestId, type, ...payload });
         });
         window.keySwapDesktop = Object.freeze({
+          platformProfile: "windows",
           applyLayout: layout => request("apply-layout", { layout }),
           stopRemapping: () => request("stop-remapping"),
           getRemapStatus: () => request("get-status"),

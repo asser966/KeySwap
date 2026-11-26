@@ -7,6 +7,24 @@ const initialRows = [
   [['ControlLeft', 'Ctrl', '', 'utility width-1-25'], ['MetaLeft', 'Win', '', 'utility width-1-25'], ['AltLeft', 'Alt', '', 'utility width-1-25'], ['Space', 'Space', '', 'utility width-6'], ['AltRight', 'Alt', '', 'utility width-1-25'], ['MetaRight', 'Win', '', 'utility width-1-25'], ['ContextMenu', 'Menu', '', 'utility width-1-25'], ['ControlRight', 'Ctrl', '', 'utility width-1-25']]
 ];
 
+const initialKeyLabels = new Map(initialRows.flat().map(([id, main]) => [id, main]));
+const platformProfiles = {
+  'apple-intel': {
+    name: 'Apple Intel',
+    keyLabels: { MetaLeft: '⌘', MetaRight: '⌘', AltLeft: '⌥', AltRight: '⌥' }
+  },
+  'apple-silicon': {
+    name: 'Apple Silicon',
+    keyLabels: { MetaLeft: '⌘', MetaRight: '⌘', AltLeft: '⌥', AltRight: '⌥' }
+  },
+  windows: { name: 'Windows', keyLabels: {} },
+  linux: {
+    name: 'Linux',
+    keyLabels: { MetaLeft: 'Super', MetaRight: 'Super' }
+  }
+};
+const platformOverrideOptions = ['auto', ...Object.keys(platformProfiles)];
+
 const languages = {
   'en-US': { name: 'US · QWERTY', keys: {} },
   'en-GB': {
@@ -135,7 +153,11 @@ const selectedPosition = document.querySelector('#selected-position');
 const saveStatus = document.querySelector('#save-status');
 const toast = document.querySelector('#toast');
 const languageSelect = document.querySelector('#language-select');
+const platformSelect = document.querySelector('#platform-select');
+const platformStatus = document.querySelector('#platform-status');
 const themeSelect = document.querySelector('#theme-select');
+const settingsMenu = document.querySelector('#settings-menu');
+const settingsPlanStatus = document.querySelector('#settings-plan-status');
 const layoutTitle = document.querySelector('#layout-title');
 const accountButton = document.querySelector('#account-button');
 const cloudMessage = document.querySelector('#cloud-message');
@@ -146,6 +168,7 @@ const saveLayoutButton = document.querySelector('#save-layout-button');
 const savedLayoutsElement = document.querySelector('#saved-layouts');
 const upgradeButton = document.querySelector('#upgrade-button');
 const managePlanButton = document.querySelector('#manage-plan-button');
+const settingsBillingHelp = document.querySelector('#settings-billing-help');
 const applySystemLayoutButton = document.querySelector('#apply-system-layout');
 const stopSystemRemapButton = document.querySelector('#stop-system-remap');
 const systemRemapStatus = document.querySelector('#system-remap-status');
@@ -199,6 +222,11 @@ let cloudRefreshId = 0;
 const savedState = loadState();
 let language = savedState.language;
 let theme = savedState.theme;
+let platformOverride = savedState.platformOverride;
+let platform = platformOverride === 'auto' ? detectPlatformProfile() : platformOverride;
+let platformArchitectureDetected = Boolean(
+  window.keySwapDesktop?.platformProfile || navigator.userAgentData?.architecture
+);
 let layouts = savedState.layouts;
 let layout = layouts[language];
 let selectedId = null;
@@ -222,6 +250,83 @@ function createDefaultLayouts() {
   return Object.fromEntries(Object.keys(languages).map(code => [code, createLanguageLayout(code)]));
 }
 
+function detectPlatformProfile() {
+  const nativeProfile = window.keySwapDesktop?.platformProfile;
+  if (platformProfiles[nativeProfile]) return nativeProfile;
+
+  const platformHint = navigator.userAgentData?.platform || navigator.platform || '';
+  const environment = `${platformHint} ${navigator.userAgent || ''}`.toLowerCase();
+  if (environment.includes('win')) return 'windows';
+  if (environment.includes('mac')) {
+    const architecture = navigator.userAgentData?.architecture || '';
+    return /arm|aarch64/i.test(architecture) ? 'apple-silicon' : 'apple-intel';
+  }
+  if (environment.includes('linux')) return 'linux';
+  return 'windows';
+}
+
+function getPlatformKeyLabel(keyData) {
+  if (keyData.main !== initialKeyLabels.get(keyData.id)) return keyData.main;
+  return platformProfiles[platform].keyLabels[keyData.id] || keyData.main;
+}
+
+function updatePlatformStatus() {
+  const selectedMode = platformOverride === 'auto' ? 'Auto-detected' : 'Selected';
+  const browserPlatform = navigator.userAgentData?.platform || navigator.platform || '';
+  const architectureNote = platformOverride === 'auto' &&
+    platform.startsWith('apple-') &&
+    /mac/i.test(browserPlatform) &&
+    !platformArchitectureDetected
+    ? ' This browser may not reveal whether the Mac uses Intel or Apple Silicon; choose the profile manually if needed.'
+    : '';
+  platformStatus.textContent = `${selectedMode} ${platformProfiles[platform].name}. This changes modifier-key labels only; native system-wide remapping is currently supported only in the Windows desktop build.${architectureNote}`;
+}
+
+function updateCompactMode() {
+  const isFullscreen = Boolean(document.fullscreenElement) ||
+    window.matchMedia('(display-mode: fullscreen)').matches;
+  const availableWidth = window.screen?.availWidth || window.innerWidth;
+  const availableHeight = window.screen?.availHeight || window.innerHeight;
+  const isWindowed = !isFullscreen &&
+    (window.innerWidth < availableWidth * 0.94 ||
+      window.innerHeight < availableHeight * 0.92);
+  const isSmall = window.innerWidth <= 980 || window.innerHeight <= 720;
+  document.documentElement.classList.toggle('compact-mode', isWindowed || isSmall);
+}
+
+async function refineMacArchitecture() {
+  const hints = navigator.userAgentData;
+  if (platformOverride !== 'auto' ||
+      !hints ||
+      !/mac/i.test(hints.platform || '') ||
+      typeof hints.getHighEntropyValues !== 'function')
+    return;
+
+  try {
+    const { architecture } = await hints.getHighEntropyValues(['architecture']);
+    if (platformOverride !== 'auto') return;
+    const detectedProfile = /arm|aarch64/i.test(architecture)
+      ? 'apple-silicon'
+      : /x86/i.test(architecture)
+        ? 'apple-intel'
+        : null;
+    if (!detectedProfile) {
+      updatePlatformStatus();
+      return;
+    }
+
+    platformArchitectureDetected = true;
+    if (platform !== detectedProfile) {
+      platform = detectedProfile;
+      updateEditor();
+      renderKeyboard();
+    }
+    updatePlatformStatus();
+  } catch {
+    updatePlatformStatus();
+  }
+}
+
 function isValidLayout(rows) {
   return Array.isArray(rows) &&
     rows.length === initialRows.length &&
@@ -232,7 +337,12 @@ function isValidLayout(rows) {
 }
 
 function loadState() {
-  const defaults = () => ({ language: 'en-US', theme: 'midnight', layouts: createDefaultLayouts() });
+  const defaults = () => ({
+    language: 'en-US',
+    theme: 'midnight',
+    platformOverride: 'auto',
+    layouts: createDefaultLayouts()
+  });
   let saved;
   try {
     saved = localStorage.getItem(storageKey);
@@ -255,7 +365,15 @@ function loadState() {
       Object.entries(parsed.layouts).every(([code, rows]) =>
         Object.keys(languages).includes(code) && isValidLayout(rows));
     if (isValidState) {
-      return { ...defaults(), language: parsed.language, theme: parsed.theme, layouts: { ...createDefaultLayouts(), ...parsed.layouts } };
+      return {
+        ...defaults(),
+        language: parsed.language,
+        theme: parsed.theme,
+        platformOverride: platformOverrideOptions.includes(parsed.platformOverride)
+          ? parsed.platformOverride
+          : 'auto',
+        layouts: { ...createDefaultLayouts(), ...parsed.layouts }
+      };
     }
     saveStatus.textContent = 'Saved layout unreadable';
     return defaults();
@@ -276,18 +394,19 @@ function renderKeyboard() {
     const rowElement = document.createElement('div');
     rowElement.className = 'key-row';
     for (const keyData of row) {
+      const mainLegend = getPlatformKeyLabel(keyData);
       const key = document.createElement('button');
       key.type = 'button';
       key.className = `key ${keyData.style || ''}${selectedId === keyData.id ? ' selected' : ''}`;
       key.dataset.keyId = keyData.id;
-      key.setAttribute('aria-label', `${keyData.id}: ${keyData.main}${keyData.alt ? `, alternate ${keyData.alt}` : ''}`);
+      key.setAttribute('aria-label', `${keyData.id}: ${mainLegend}${keyData.alt ? `, alternate ${keyData.alt}` : ''}`);
       key.setAttribute('aria-pressed', selectedId === keyData.id ? 'true' : 'false');
       const alt = document.createElement('span');
       alt.className = 'alt-legend';
       alt.textContent = keyData.alt;
       const main = document.createElement('span');
       main.className = 'legend';
-      main.textContent = keyData.main;
+      main.textContent = mainLegend;
       key.append(alt, main);
       key.addEventListener('click', () => selectKey(keyData.id));
       rowElement.append(key);
@@ -349,8 +468,8 @@ function updateEditor() {
     altInput.value = '';
     return;
   }
-  selectedPreview.textContent = key.main || '·';
-  selectedName.textContent = key.main || 'Unassigned';
+  selectedPreview.textContent = getPlatformKeyLabel(key) || '·';
+  selectedName.textContent = getPlatformKeyLabel(key) || 'Unassigned';
   selectedPosition.textContent = key.id.replace(/([a-z])([A-Z])/g, '$1 $2');
   mainInput.value = key.main;
   altInput.value = key.alt;
@@ -358,7 +477,7 @@ function updateEditor() {
 
 function persistLayout() {
   try {
-    localStorage.setItem(storageKey, JSON.stringify({ version: 2, language, theme, layouts }));
+    localStorage.setItem(storageKey, JSON.stringify({ version: 2, language, theme, platformOverride, layouts }));
     saveStatus.textContent = 'Saved locally';
   } catch {
     saveStatus.textContent = 'Could not save';
@@ -424,11 +543,23 @@ function updateCloudUi() {
   planStatus.textContent = paid
     ? `Pro plan · ${savedLayouts.length} saved`
     : `Free plan · ${savedLayouts.length} / 5 saved`;
+  settingsPlanStatus.textContent = paid ? 'Pro plan active' : 'Free plan';
   saveLayoutButton.disabled = !supabaseClient || !canUseCloud || (!paid && savedLayouts.length >= 5);
   upgradeButton.disabled = !supabaseClient || !canUseCloud || paid;
   upgradeButton.textContent = paid ? 'Pro plan active' : 'Upgrade to Pro';
   managePlanButton.hidden = !signedIn || !subscription?.stripe_customer_id;
   managePlanButton.disabled = !supabaseClient || !canUseCloud;
+  settingsBillingHelp.textContent = !supabaseClient
+    ? 'Billing is unavailable because Supabase is not configured. Set supabaseUrl and supabaseAnonKey in config.js (or the Windows app’s wwwroot/config.js), then configure Stripe and deploy its billing functions; see README.'
+    : paid
+      ? subscription?.stripe_customer_id
+        ? 'Your Pro plan is active. Use Manage subscription to open the Stripe billing portal.'
+        : 'Your Pro plan is active, but its Stripe customer record is missing. Contact the app administrator to restore billing management.'
+      : !signedIn
+        ? 'Sign in to your account to upgrade.'
+        : !canUseCloud
+          ? 'Verify your authenticator app to unlock billing.'
+          : 'Upgrade opens secure Stripe Checkout.';
   authConfigMessage.hidden = Boolean(supabaseClient);
   authConfigMessage.textContent = cloudConfigError;
   authSubmit.disabled = !supabaseClient || signedIn;
@@ -1034,10 +1165,13 @@ window.addEventListener('blur', () => {
 });
 
 languageSelect.value = language;
+platformSelect.value = platformOverride;
 themeSelect.value = theme;
 layoutTitle.textContent = languages[language].name;
 document.documentElement.dataset.theme = theme;
 applyLanguageDirection();
+updatePlatformStatus();
+void refineMacArchitecture();
 
 languageSelect.addEventListener('change', () => {
   language = languageSelect.value;
@@ -1049,6 +1183,18 @@ languageSelect.addEventListener('change', () => {
   updateEditor();
   renderKeyboard();
   showToast(`Switched to ${languages[language].name}.`);
+});
+
+platformSelect.addEventListener('change', () => {
+  platformOverride = platformSelect.value;
+  platformArchitectureDetected = platformOverride !== 'auto' ||
+    Boolean(window.keySwapDesktop?.platformProfile || navigator.userAgentData?.architecture);
+  platform = platformOverride === 'auto' ? detectPlatformProfile() : platformOverride;
+  updatePlatformStatus();
+  updateEditor();
+  renderKeyboard();
+  persistLayout();
+  void refineMacArchitecture();
 });
 
 themeSelect.addEventListener('change', () => {
@@ -1069,6 +1215,12 @@ authDialog.addEventListener('close', () => {
 });
 authDialog.addEventListener('click', event => {
   if (event.target === authDialog) authDialog.close();
+});
+document.addEventListener('click', event => {
+  if (!settingsMenu.contains(event.target)) settingsMenu.open = false;
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && settingsMenu.open) settingsMenu.open = false;
 });
 signInTab.addEventListener('click', () => setAuthMode('sign-in'));
 signUpTab.addEventListener('click', () => setAuthMode('sign-up'));
@@ -1130,6 +1282,9 @@ saveLayoutForm.addEventListener('submit', saveCurrentLayout);
 upgradeButton.addEventListener('click', () => openBillingFlow('create-checkout-session', 'checkout.stripe.com'));
 managePlanButton.addEventListener('click', () => openBillingFlow('create-portal-session', 'billing.stripe.com'));
 
+window.addEventListener('resize', updateCompactMode);
+document.addEventListener('fullscreenchange', updateCompactMode);
+updateCompactMode();
 setAuthMode('sign-in');
 updateEditor();
 renderKeyboard();

@@ -38,6 +38,24 @@ Windows secure screens (such as UAC prompts) and elevated applications may
 ignore injected text. The app package is self-contained for .NET but requires
 the WebView2 Runtime.
 
+## Platform profiles and desktop builds
+
+The platform profile is separate from the keyboard language. Auto-detect uses
+the native Windows host when available and browser platform hints otherwise;
+you can also choose Apple Intel, Apple Silicon, Windows, or Linux manually.
+Profiles adapt modifier-key labels (Command/Option on Apple, Super on Linux).
+Apple Intel and Apple Silicon share the same logical labels. Some browsers
+hide Mac CPU architecture, so select the correct Apple profile manually if
+auto-detection cannot tell which chip you have.
+
+The current native desktop host uses Windows Forms, WebView2, and a Windows
+low-level keyboard hook. Only the Windows x64 desktop package is currently
+available, and system-wide remapping is Windows-only. The Apple Intel, Apple
+Silicon, and Linux profiles are visual previews; macOS/Linux desktop builds
+and native remapping are not implemented. Those platforms need separate
+native hosts, input hooks, and platform-specific permissions before they can
+change typing in other apps.
+
 For browser account features, serve the web version from an HTTP(S) origin (not
 `file://`) and use that exact origin for Supabase Auth redirects and
 `APP_BASE_URL`.

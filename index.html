@@ -17,20 +17,66 @@
           <span>key<span class="brand-accent">swap</span></span>
         </a>
         <div class="topbar-meta">
-          <label class="theme-control">
-            <span class="section-label">THEME</span>
-            <select id="theme-select" aria-label="Color theme">
-              <option value="midnight">Midnight</option>
-              <option value="sage">Sage</option>
-              <option value="paper">Paper</option>
-              <option value="ocean">Ocean</option>
-              <option value="amethyst">Amethyst</option>
-              <option value="ember">Ember</option>
-              <option value="slate">Slate</option>
-              <option value="rose">Rose</option>
-              <option value="high-contrast">High contrast</option>
-            </select>
-          </label>
+          <details id="settings-menu" class="settings-menu">
+            <summary class="settings-button">Settings</summary>
+            <div class="settings-popover">
+              <div class="settings-group">
+                <span class="section-label">APPEARANCE</span>
+                <label class="theme-control">
+                  <span>Color theme</span>
+                  <select id="theme-select" aria-label="Color theme">
+                    <option value="midnight">Midnight</option>
+                    <option value="sage">Sage</option>
+                    <option value="paper">Paper</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="amethyst">Amethyst</option>
+                    <option value="ember">Ember</option>
+                    <option value="slate">Slate</option>
+                    <option value="rose">Rose</option>
+                    <option value="high-contrast">High contrast</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-group">
+                <span class="section-label">LAYOUT</span>
+                <label class="platform-control">
+                  <span>Platform profile</span>
+                  <select id="platform-select" aria-label="Platform profile">
+                    <option value="auto">Auto-detect</option>
+                    <option value="apple-intel">Apple Intel</option>
+                    <option value="apple-silicon">Apple Silicon</option>
+                    <option value="windows">Windows</option>
+                    <option value="linux">Linux</option>
+                  </select>
+                </label>
+                <p id="platform-status" class="platform-status" role="status" aria-live="polite"></p>
+                <label class="language-control">
+                  <span>Keyboard language</span>
+                  <select id="language-select" aria-label="Keyboard language">
+                    <option value="en-US">English · US QWERTY</option>
+                    <option value="en-GB">English · UK QWERTY</option>
+                    <option value="de-DE">Deutsch · QWERTZ</option>
+                    <option value="fr-FR">Français · AZERTY</option>
+                    <option value="es-ES">Español · QWERTY</option>
+                    <option value="it-IT">Italiano · QWERTY</option>
+                    <option value="nl-NL">Nederlands · US-Intl</option>
+                    <option value="sv-SE">Svenska · QWERTY</option>
+                    <option value="pt-BR">Português (BR) · ABNT2 map</option>
+                    <option value="ar-SA">العربية · Arabic 101</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-group">
+                <span class="section-label">SUBSCRIPTION</span>
+                <strong id="settings-plan-status" class="settings-plan-status">Free plan</strong>
+                <div class="billing-actions">
+                  <button id="upgrade-button" class="upgrade-button" type="button" disabled>Upgrade to Pro</button>
+                  <button id="manage-plan-button" class="reset-button" type="button" hidden>Manage subscription</button>
+                </div>
+                <p id="settings-billing-help" class="settings-billing-help" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </details>
           <span class="save-indicator"><span class="save-dot"></span><span id="save-status">Saved locally</span></span>
           <button id="account-button" class="account-button" type="button">Sign in / Sign up</button>
           <span class="avatar" aria-label="Your layout">Y</span>
@@ -50,21 +96,6 @@
             <h2><span id="layout-title">US · QWERTY</span><span class="layout-tag">ANSI POSITIONS</span></h2>
           </div>
           <div class="studio-actions">
-            <label class="language-control">
-              <span class="section-label">KEYBOARD LANGUAGE</span>
-              <select id="language-select" aria-label="Keyboard language">
-                <option value="en-US">English · US QWERTY</option>
-                <option value="en-GB">English · UK QWERTY</option>
-                <option value="de-DE">Deutsch · QWERTZ</option>
-                <option value="fr-FR">Français · AZERTY</option>
-                <option value="es-ES">Español · QWERTY</option>
-                <option value="it-IT">Italiano · QWERTY</option>
-                <option value="nl-NL">Nederlands · US-Intl</option>
-                <option value="sv-SE">Svenska · QWERTY</option>
-                <option value="pt-BR">Português (BR) · ABNT2 map</option>
-                <option value="ar-SA">العربية · Arabic 101</option>
-              </select>
-            </label>
             <button class="reset-button" id="reset-layout" type="button"><span aria-hidden="true">↺</span> Reset layout</button>
           </div>
         </div>
@@ -102,11 +133,11 @@
 
         <section class="system-remap-panel" aria-labelledby="system-remap-title">
           <div class="system-remap-copy">
-            <span class="section-label">WINDOWS DESKTOP</span>
+            <span class="section-label">SYSTEM-WIDE REMAPPING</span>
             <h3 id="system-remap-title">Apply your layout system-wide</h3>
-            <p>Enable this mapping to type with these assignments across Windows apps. Re-apply after editing to sync changes.</p>
+            <p>Native system-wide remapping is available only in the Windows desktop build. Re-apply after editing to sync changes.</p>
             <p>Letters, numbers, punctuation, and Space remap; shortcuts and system keys stay native.</p>
-            <p id="system-remap-status" class="system-remap-status" role="status" aria-live="polite">This browser preview cannot change Windows typing. Open the KeySwap desktop app to apply a system-wide layout.</p>
+            <p id="system-remap-status" class="system-remap-status" role="status" aria-live="polite">This browser preview cannot change system typing. Open the Windows desktop app to apply a system-wide layout.</p>
           </div>
           <div class="system-remap-controls">
             <button id="apply-system-layout" class="apply-button" type="button" disabled>Apply system-wide</button>
@@ -132,10 +163,6 @@
             </label>
             <button id="save-layout-button" class="apply-button" type="submit" disabled>Save layout</button>
           </form>
-          <div class="billing-actions">
-            <button id="upgrade-button" class="upgrade-button" type="button" disabled>Upgrade to Pro</button>
-            <button id="manage-plan-button" class="reset-button" type="button" hidden>Manage subscription</button>
-          </div>
         </div>
         <p id="cloud-message" class="cloud-message" role="status" aria-live="polite">Account saving and billing need Supabase setup; see README.</p>
         <div id="saved-layouts" class="saved-layout-list" aria-live="polite"></div>
