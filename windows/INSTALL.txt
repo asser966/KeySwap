@@ -1,0 +1,45 @@
+KeySwap for Windows
+
+Requirements:
+- Windows 10 or later (x64)
+- Microsoft Edge WebView2 Runtime
+
+This is the Windows x64 desktop package. The shared editor offers Apple Intel,
+Apple Silicon, Windows, and Linux platform profiles for modifier-key legends,
+but macOS/Linux desktop builds and system-wide remapping are not available.
+
+Usage:
+1. Extract the complete package folder.
+2. Run KeySwap.exe.
+3. Choose a language or edit key assignments.
+4. Click Apply system-wide and confirm the native Windows prompt.
+5. Click Stop remapping or close KeySwap to restore normal typing.
+
+The remap runs only while KeySwap is open. It does not change Windows settings,
+the registry, or install a keyboard driver. Control, Alt, and Windows shortcuts
+are preserved. Only letters, digits, punctuation, and Space are remapped;
+other keys keep their normal behavior. Alternate legends use Shift. AltGr is
+not modeled. Secure screens and elevated apps may ignore injected text.
+
+The desktop package is local-first. Supabase accounts and Stripe billing are
+available only after you configure a Supabase project. For sign-in and MFA:
+1. Edit wwwroot\config.js and set supabaseUrl and supabaseAnonKey using the
+   project URL and the public publishable/anon key. For example:
+   window.KEYSWAP_CONFIG = Object.freeze({
+     supabaseUrl: "https://<project-ref>.supabase.co",
+     supabaseAnonKey: "<publishable-or-anon-key>"
+   });
+   Never use a service-role key in this file.
+2. In Supabase Auth > URL Configuration, allow
+   http://127.0.0.1:54123/auth/callback for email confirmation and OAuth.
+3. Enable Google, Azure (Microsoft), and GitHub under Auth > Providers.
+   Register the provider callback URL shown by Supabase with each identity
+   provider; store provider credentials only in Supabase. Microsoft sign-in
+   uses Supabase's Azure provider and requests the email scope.
+4. Enable TOTP under Auth > MFA and apply the repository migrations with the
+   Supabase CLI. Keep KeySwap open while completing email/OAuth sign-in.
+
+The browser version also requires its HTTP(S) origin pattern (for example
+http://127.0.0.1:8765/**) in the Supabase redirect allow-list. The configured publishable key and enabled OAuth
+providers are required before the sign-in buttons work. Stripe billing is
+available only in the separately served web version.

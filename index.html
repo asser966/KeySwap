@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111511">
+    <title>KeySwap — Keyboard layout studio</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="config.js"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="KeySwap home">
+          <span class="brand-mark" aria-hidden="true">⌘</span>
+          <span>key<span class="brand-accent">swap</span></span>
+        </a>
+        <div class="topbar-meta">
+          <details id="settings-menu" class="settings-menu">
+            <summary class="settings-button">Settings</summary>
+            <div class="settings-popover">
+              <div class="settings-group">
+                <span class="section-label">APPEARANCE</span>
+                <label class="theme-control">
+                  <span>Color theme</span>
+                  <select id="theme-select" aria-label="Color theme">
+                    <option value="midnight">Midnight</option>
+                    <option value="sage">Sage</option>
+                    <option value="paper">Paper</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="amethyst">Amethyst</option>
+                    <option value="ember">Ember</option>
+                    <option value="slate">Slate</option>
+                    <option value="rose">Rose</option>
+                    <option value="high-contrast">High contrast</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-group">
+                <span class="section-label">LAYOUT</span>
+                <label class="platform-control">
+                  <span>Platform profile</span>
+                  <select id="platform-select" aria-label="Platform profile">
+                    <option value="auto">Auto-detect</option>
+                    <option value="apple-intel">Apple Intel</option>
+                    <option value="apple-silicon">Apple Silicon</option>
+                    <option value="windows">Windows</option>
+                    <option value="linux">Linux</option>
+                  </select>
+                </label>
+                <p id="platform-status" class="platform-status" role="status" aria-live="polite"></p>
+                <label class="language-control">
+                  <span>Keyboard language</span>
+                  <select id="language-select" aria-label="Keyboard language">
+                    <option value="en-US">English · US QWERTY</option>
+                    <option value="en-GB">English · UK QWERTY</option>
+                    <option value="de-DE">Deutsch · QWERTZ</option>
+                    <option value="fr-FR">Français · AZERTY</option>
+                    <option value="es-ES">Español · QWERTY</option>
+                    <option value="it-IT">Italiano · QWERTY</option>
+                    <option value="nl-NL">Nederlands · US-Intl</option>
+                    <option value="sv-SE">Svenska · QWERTY</option>
+                    <option value="pt-BR">Português (BR) · ABNT2 map</option>
+                    <option value="ar-SA">العربية · Arabic 101</option>
+                  </select>
+                </label>
+              </div>
+              <div class="settings-group">
+                <span class="section-label">SUBSCRIPTION</span>
+                <strong id="settings-plan-status" class="settings-plan-status">Free plan</strong>
+                <div class="billing-actions">
+                  <button id="upgrade-button" class="upgrade-button" type="button" disabled>Upgrade to Pro</button>
+                  <button id="manage-plan-button" class="reset-button" type="button" hidden>Manage subscription</button>
+                </div>
+                <p id="settings-billing-help" class="settings-billing-help" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </details>
+          <span class="save-indicator"><span class="save-dot"></span><span id="save-status">Saved locally</span></span>
+          <button id="account-button" class="account-button" type="button">Sign in / Sign up</button>
+          <span class="avatar" aria-label="Your layout">Y</span>
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="eyebrow"><span class="eyebrow-line"></span> YOUR PERSONAL KEYBOARD</div>
+        <h1>Make every key<br><span class="muted-heading">feel like yours.</span></h1>
+        <p>Swap keys around or give any key a new assignment.<br class="desktop-break"> Your layout saves automatically on this device.</p>
+      </section>
+
+      <section class="studio" aria-label="Keyboard layout editor">
+        <div class="studio-heading">
+          <div>
+            <div class="section-label">LAYOUT CANVAS</div>
+            <h2><span id="layout-title">US · QWERTY</span><span class="layout-tag">ANSI POSITIONS</span></h2>
+          </div>
+          <div class="studio-actions">
+            <button class="reset-button" id="reset-layout" type="button"><span aria-hidden="true">↺</span> Reset layout</button>
+          </div>
+        </div>
+
+        <div class="keyboard-frame">
+          <div class="keyboard" id="keyboard" role="group" aria-label="Click keys to select and swap assignments"></div>
+          <div class="keyboard-footer">
+            <span class="keyboard-hint"><span class="hint-icon">↔</span> Select two keys to swap their assignments</span>
+            <span class="physical-hint">77-key ANSI map · press a key to highlight</span>
+            <span class="key-count"><span id="key-count">0</span> keys</span>
+          </div>
+        </div>
+
+        <div class="editor-panel" aria-live="polite">
+          <div class="selected-key-card">
+            <div class="selected-keycap" id="selected-preview">—</div>
+            <div class="selected-details">
+              <span class="section-label">SELECTED KEY</span>
+              <strong id="selected-name">Choose a key</strong>
+              <span id="selected-position">Click any key on the layout</span>
+            </div>
+          </div>
+          <form id="assignment-form" class="assignment-form">
+            <label>
+              <span class="section-label">MAIN LEGEND</span>
+              <input id="main-legend" maxlength="12" autocomplete="off" disabled aria-label="Main key legend">
+            </label>
+            <label>
+              <span class="section-label">ALT LEGEND <span class="optional">(optional)</span></span>
+              <input id="alt-legend" maxlength="12" autocomplete="off" disabled aria-label="Alternate key legend">
+            </label>
+            <button id="apply-assignment" class="apply-button" type="submit" disabled>Apply <span aria-hidden="true">↗</span></button>
+          </form>
+        </div>
+
+        <section class="system-remap-panel" aria-labelledby="system-remap-title">
+          <div class="system-remap-copy">
+            <span class="section-label">SYSTEM-WIDE REMAPPING</span>
+            <h3 id="system-remap-title">Apply your layout system-wide</h3>
+            <p>Native system-wide remapping is available only in the Windows desktop build. Re-apply after editing to sync changes.</p>
+            <p>Letters, numbers, punctuation, and Space remap; shortcuts and system keys stay native.</p>
+            <p id="system-remap-status" class="system-remap-status" role="status" aria-live="polite">This browser preview cannot change system typing. Open the Windows desktop app to apply a system-wide layout.</p>
+          </div>
+          <div class="system-remap-controls">
+            <button id="apply-system-layout" class="apply-button" type="button" disabled>Apply system-wide</button>
+            <button id="stop-system-remap" class="reset-button" type="button" disabled>Stop remapping</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="cloud-panel" aria-labelledby="cloud-title">
+        <div class="cloud-heading">
+          <div>
+            <div class="section-label">YOUR KEYBOARD LIBRARY</div>
+            <h2 id="cloud-title">Saved layouts</h2>
+          </div>
+          <span id="plan-status" class="plan-status">Free plan · 0 / 5 saved</span>
+        </div>
+        <p class="cloud-description">Sign in to save named layouts to your account. Free accounts can save up to five; Pro removes that cap.</p>
+        <div class="cloud-controls">
+          <form id="save-layout-form" class="save-layout-form">
+            <label>
+              <span class="section-label">SAVE CURRENT LAYOUT</span>
+              <input id="save-layout-name" maxlength="60" required value="My layout" aria-label="Saved layout name">
+            </label>
+            <button id="save-layout-button" class="apply-button" type="submit" disabled>Save layout</button>
+          </form>
+        </div>
+        <p id="cloud-message" class="cloud-message" role="status" aria-live="polite">Account saving and billing need Supabase setup; see README.</p>
+        <div id="saved-layouts" class="saved-layout-list" aria-live="polite"></div>
+      </section>
+
+      <footer class="page-footer">
+        <span>Built for the way <span class="footer-accent">you</span> work.</span>
+        <span>Only the Windows desktop app changes typing in other apps.</span>
+      </footer>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <dialog id="auth-dialog" class="auth-dialog" aria-labelledby="auth-title">
+      <div class="auth-dialog-heading">
+        <div>
+          <span class="section-label">KEYSWAP ACCOUNT</span>
+          <h2 id="auth-title">Welcome back</h2>
+        </div>
+        <button id="close-auth-dialog" class="dialog-close" type="button" aria-label="Close sign in">×</button>
+      </div>
+      <p id="auth-config-message" class="config-message" hidden></p>
+      <div id="auth-login-panel">
+        <div class="auth-tabs" role="group" aria-label="Account action">
+          <button id="sign-in-tab" type="button" aria-pressed="true">Sign in</button>
+          <button id="sign-up-tab" type="button" aria-pressed="false">Create account</button>
+        </div>
+        <div class="oauth-actions">
+          <button id="google-auth-button" class="oauth-button" type="button">Continue with Google</button>
+          <button id="microsoft-auth-button" class="oauth-button" type="button">Continue with Microsoft</button>
+          <button id="github-auth-button" class="oauth-button" type="button">Continue with GitHub</button>
+        </div>
+        <p class="oauth-setup-note">Social sign-in needs the Supabase URL and publishable key in config.js, plus Google, Azure (Microsoft), and GitHub enabled under Supabase Auth → Providers. Add the web and Windows callback URLs there; provider setup is documented in README.md.</p>
+        <div class="auth-divider"><span>or use email</span></div>
+        <form id="auth-form">
+          <label>
+            <span class="section-label">EMAIL</span>
+            <input id="auth-email" type="email" autocomplete="email" required>
+          </label>
+          <label>
+            <span class="section-label">PASSWORD</span>
+            <input id="auth-password" type="password" autocomplete="current-password" minlength="8" required>
+          </label>
+          <button id="auth-submit" class="apply-button auth-submit" type="submit">Sign in</button>
+        </form>
+        <p id="auth-message" class="cloud-message" role="status" aria-live="polite"></p>
+      </div>
+
+      <section id="account-session-panel" hidden>
+        <p id="account-email" class="account-email"></p>
+        <div class="mfa-panel">
+          <h3>Two-factor authentication</h3>
+          <p id="mfa-status" class="mfa-status" role="status" aria-live="polite"></p>
+          <label id="mfa-factor-label" class="mfa-factor-label" hidden>
+            <span class="section-label">AUTHENTICATOR</span>
+            <select id="mfa-factor-select"></select>
+          </label>
+          <button id="enroll-mfa-button" class="oauth-button" type="button" hidden>Set up authenticator app</button>
+          <form id="mfa-enroll-form" hidden>
+            <img id="mfa-qr-code" class="mfa-qr-code" alt="One-time authenticator setup QR code">
+            <p class="mfa-secret-copy">Can't scan? Enter this setup key manually: <code id="mfa-secret"></code></p>
+            <label>
+              <span class="section-label">6-DIGIT AUTHENTICATOR CODE</span>
+              <input id="mfa-enroll-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            </label>
+            <div class="mfa-actions">
+              <button class="apply-button" type="submit">Verify and enable</button>
+              <button id="cancel-mfa-enrollment" class="reset-button" type="button">Cancel setup</button>
+            </div>
+          </form>
+          <form id="mfa-challenge-form" hidden>
+            <label>
+              <span class="section-label">6-DIGIT AUTHENTICATOR CODE</span>
+              <input id="mfa-challenge-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+            </label>
+            <button class="apply-button" type="submit">Verify code</button>
+          </form>
+          <button id="remove-mfa-button" class="reset-button" type="button" hidden>Remove selected authenticator</button>
+        </div>
+        <button id="sign-out-button" class="reset-button" type="button">Sign out</button>
+      </section>
+    </dialog>
+  </body>
+</html>
